@@ -5,20 +5,23 @@ import * as vscode from 'vscode';
 import { ThemeManager } from './themeManager';
 import { evaluateRules, getRuleDescription } from './ruleEngine';
 import { loadConfig, validateConfig } from './config';
+import { createRuleFromCurrentFile } from './commands/createRule';
+import { manageRules } from './commands/manageRules';
+import { cleanupDuplicateRules } from './commands/cleanupRules';
 
 // global theme manager instance
 let themeManager: ThemeManager | undefined;
 
 // * activate extension & register commands, listeners, & theme manager
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	console.log('[Reactive Themes] Extension activating...');
-
-	// initialize theme manager
-	themeManager = new ThemeManager();
 
 	// load initial configuration & set enabled state
 	const config = loadConfig();
-	themeManager.setEnabled(config.enabled);
+
+	// initialize theme manager
+	themeManager = new ThemeManager(config.debounceMs);
+	await themeManager.setEnabled(config.enabled);
 
 	// validate configuration & warn on errors
 	const validation = validateConfig(config);
@@ -35,14 +38,14 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	// command: toggle enable/disable
-	const toggleCommand = vscode.commands.registerCommand('reactiveThemes.toggle', () => {
+	const toggleCommand = vscode.commands.registerCommand('reactiveThemes.toggle', async () => {
 		if (!themeManager) {
 			return;
 		}
 
 		const currentState = themeManager.getEnabled();
 		const newState = !currentState;
-		themeManager.setEnabled(newState);
+		await themeManager.setEnabled(newState);
 
 		// persist enabled state to configuration
 		vscode.workspace.getConfiguration('reactiveThemes').update('enabled', newState, true);
@@ -112,6 +115,21 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.showInformationMessage(message.replace(/\*\*/g, '').replace(/`/g, '"'));
 	});
 
+	// command: create rule from current file
+	const createRuleCommand = vscode.commands.registerCommand('reactiveThemes.createRuleFromCurrentFile', async () => {
+		await createRuleFromCurrentFile();
+	});
+
+	// command: manage rules
+	const manageRulesCommand = vscode.commands.registerCommand('reactiveThemes.manageRules', async () => {
+		await manageRules();
+	});
+
+	// command: cleanup duplicate rules
+	const cleanupRulesCommand = vscode.commands.registerCommand('reactiveThemes.cleanupDuplicates', async () => {
+		await cleanupDuplicateRules();
+	});
+
 	// listen for active editor changes & apply theme rules
 	const editorChangeListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
 		handleEditorChange(editor);
@@ -125,19 +143,13 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	// listen for document language mode changes
-	const documentLanguageListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
-		if (editor) {
-			handleEditorChange(editor);
-		}
-	});
-
 	// listen for reactiveThemes.* config changes & reload
-	const configChangeListener = vscode.workspace.onDidChangeConfiguration((event) => {
+	const configChangeListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
 		if (event.affectsConfiguration('reactiveThemes')) {
 			const config = loadConfig();
 			if (themeManager) {
-				themeManager.setEnabled(config.enabled);
+				themeManager.setDebounceMs(config.debounceMs);
+				await themeManager.setEnabled(config.enabled);
 			}
 
 			// re-evaluate rules w/ current editor
@@ -152,9 +164,11 @@ export function activate(context: vscode.ExtensionContext) {
 		toggleCommand,
 		reloadCommand,
 		showActiveRuleCommand,
+		createRuleCommand,
+		manageRulesCommand,
+		cleanupRulesCommand,
 		editorChangeListener,
 		languageChangeListener,
-		documentLanguageListener,
 		configChangeListener,
 		themeManager
 	);
@@ -190,11 +204,11 @@ function handleEditorChange(editor: vscode.TextEditor | undefined): void {
 }
 
 // deactivate extension & restore original theme
-export function deactivate() {
+export async function deactivate() {
 	console.log('[Reactive Themes] Extension deactivating...');
 
 	// restore original theme on deactivation
 	if (themeManager) {
-		themeManager.restoreOriginalTheme();
+		await themeManager.restoreOriginalTheme();
 	}
 }
