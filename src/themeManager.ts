@@ -2,10 +2,7 @@
 // Theme application manager w/ debouncing & state tracking
 
 import * as vscode from 'vscode';
-import { getCurrentTheme, setCurrentTheme } from './config';
-
-// debounce timeout to prevent rapid theme switching
-const DEBOUNCE_MS = 300;
+import { DEFAULT_DEBOUNCE_MS, getCurrentTheme, setCurrentTheme } from './config';
 
 // * manages theme application w/ debouncing & state tracking
 export class ThemeManager {
@@ -17,10 +14,22 @@ export class ThemeManager {
     private originalTheme: string | undefined;
     // whether theme switching is enabled
     private isEnabled: boolean = true;
+    // debounce interval in milliseconds
+    private debounceMs: number;
+
+    private readonly setTheme: (theme: string) => Promise<void>;
+    private readonly readCurrentTheme: () => string;
 
     // initialize manager & store original theme
-    constructor() {
-        this.originalTheme = getCurrentTheme();
+    constructor(
+        debounceMs: number = DEFAULT_DEBOUNCE_MS,
+        setTheme: (theme: string) => Promise<void> = (theme) => setCurrentTheme(theme),
+        readCurrentTheme: () => string = () => getCurrentTheme()
+    ) {
+        this.debounceMs = debounceMs;
+        this.setTheme = setTheme;
+        this.readCurrentTheme = readCurrentTheme;
+        this.originalTheme = this.readCurrentTheme();
     }
 
     // apply theme w/ debouncing to prevent rapid changes
@@ -38,7 +47,7 @@ export class ThemeManager {
         // debounce theme change
         this.debounceTimer = setTimeout(() => {
             this.applyThemeImmediate(themeName, reason);
-        }, DEBOUNCE_MS);
+        }, this.debounceMs);
     }
 
     // * immediately apply theme without debouncing
@@ -49,7 +58,7 @@ export class ThemeManager {
         }
 
         try {
-            await setCurrentTheme(themeName);
+            await this.setTheme(themeName);
             this.currentAppliedTheme = themeName;
 
             // log w/ reason for debugging
@@ -80,13 +89,21 @@ export class ThemeManager {
     }
 
     // enable or disable theme switching
-    setEnabled(enabled: boolean): void {
+    async setEnabled(enabled: boolean): Promise<void> {
+        if (!enabled && this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+        }
+
         this.isEnabled = enabled;
 
         // restore original theme when disabling
         if (!enabled) {
-            this.restoreOriginalTheme();
+            await this.restoreOriginalTheme();
         }
+    }
+
+    setDebounceMs(debounceMs: number): void {
+        this.debounceMs = debounceMs;
     }
 
     // get whether theme switching is enabled
