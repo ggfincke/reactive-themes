@@ -2,6 +2,7 @@
 // Rule matching & evaluation engine for Reactive Themes
 
 import * as vscode from 'vscode';
+import { minimatch } from 'minimatch';
 import { ThemeRule, RuleMatchResult } from './types';
 
 // * evaluate rules against current editor context
@@ -65,24 +66,15 @@ function matchesRule(
     return true;
 }
 
-// simple glob pattern matcher for file paths
-function matchGlobPattern(filePath: string, pattern: string): boolean {
-    // normalize path separators to forward slashes
+// glob pattern matcher for file paths using minimatch
+export function matchGlobPattern(filePath: string, pattern: string): boolean {
     const normalizedPath = filePath.replace(/\\/g, '/');
+    const matchBase = !pattern.includes('/');
 
-    // convert glob pattern to regex
-    let regexPattern = pattern
-        .replace(/\\/g, '/') // normalize pattern separators
-        .replace(/\./g, '\\.') // escape dots
-        .replace(/\*\*/g, '§§') // temporarily replace ** w/ placeholder
-        .replace(/\*/g, '[^/]*') // replace * w/ regex for any non-slash chars
-        .replace(/§§/g, '.*'); // replace ** w/ regex for any chars including slashes
-
-    // add anchors for full path matching
-    regexPattern = '^' + regexPattern + '$';
-
-    const regex = new RegExp(regexPattern);
-    return regex.test(normalizedPath);
+    return minimatch(normalizedPath, pattern, {
+        dot: true,
+        matchBase
+    });
 }
 
 // generate human-readable description of rule conditions
