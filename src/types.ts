@@ -20,6 +20,7 @@ export interface ReactiveThemesConfig {
     enabled: boolean;
     rules: ThemeRule[];
     defaultTheme?: string;
+    debounceMs: number;
 }
 
 // result of evaluating rules against current context
