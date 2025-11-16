@@ -9,15 +9,79 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "reactive-themes.helloWorld",
-        "title": "Hello World"
+        "command": "reactiveThemes.toggle",
+        "title": "Reactive Themes: Toggle",
+        "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.reloadRules",
+        "title": "Reactive Themes: Reload Rules",
+        "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.showActiveRule",
+        "title": "Reactive Themes: Show Active Rule",
+        "category": "Reactive Themes"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Reactive Themes",
+      "properties": {
+        "reactiveThemes.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable automatic reactive theme switching"
+        },
+        "reactiveThemes.rules": {
+          "type": "array",
+          "default": [],
+          "description": "Array of rules that define when to switch themes",
+          "items": {
+            "type": "object",
+            "required": ["name", "when", "theme"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Human-readable name for this rule"
+              },
+              "when": {
+                "type": "object",
+                "description": "Conditions that trigger this rule",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "description": "Match files with this language ID (e.g., 'typescript', 'markdown')"
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "description": "Match files that match this glob pattern (e.g., '**/*.test.ts', '**/docs/**')"
+                  },
+                  "workspaceName": {
+                    "type": "string",
+                    "description": "Match when in a workspace with this name"
+                  }
+                }
+              },
+              "theme": {
+                "type": "string",
+                "description": "VS Code theme ID to apply when this rule matches"
+              }
+            }
+          }
+        },
+        "reactiveThemes.defaultTheme": {
+          "type": "string",
+          "description": "Default theme to use when no rules match (optional - uses your original theme if not set)"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
