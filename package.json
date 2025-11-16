@@ -3,6 +3,13 @@
   "displayName": "reactive-themes",
   "description": "Dynamically switch VS Code color themes based on file type, language, and workspace",
   "version": "0.0.1",
+  "publisher": "ggfincke",
+  "author": "Garrett Fincke",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ggfincke/reactive-themes.git"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.106.0"
   },
@@ -17,17 +24,32 @@
     "commands": [
       {
         "command": "reactiveThemes.toggle",
-        "title": "Reactive Themes: Toggle",
+        "title": "Toggle",
         "category": "Reactive Themes"
       },
       {
         "command": "reactiveThemes.reloadRules",
-        "title": "Reactive Themes: Reload Rules",
+        "title": "Reload Rules",
         "category": "Reactive Themes"
       },
       {
         "command": "reactiveThemes.showActiveRule",
-        "title": "Reactive Themes: Show Active Rule",
+        "title": "Show Active Rule",
+        "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.createRuleFromCurrentFile",
+        "title": "Create Rule from Current File",
+        "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.manageRules",
+        "title": "Manage Rules",
+        "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.cleanupDuplicates",
+        "title": "Find and Remove Duplicate Rules",
         "category": "Reactive Themes"
       }
     ],
@@ -79,6 +101,12 @@
         "reactiveThemes.defaultTheme": {
           "type": "string",
           "description": "Default theme to use when no rules match (optional - uses your original theme if not set)"
+        },
+        "reactiveThemes.debounceMs": {
+          "type": "number",
+          "default": 300,
+          "minimum": 0,
+          "description": "Milliseconds to debounce theme switches. Lower values react faster; higher values reduce churn."
         }
       }
     }
@@ -100,5 +128,8 @@
     "typescript": "^5.9.3",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2"
+  },
+  "dependencies": {
+    "minimatch": "^10.0.1"
   }
 }
