@@ -1,0 +1,23 @@
+name: Example Configuration
+version: 1.0.0
+description: Sample YAML file for testing Reactive Themes
+
+settings:
+  enableFeatureX: true
+  maxConnections: 100
+  timeout: 5000
+
+languages:
+  - python
+  - javascript
+  - typescript
+  - go
+  - rust
+  - java
+  - cpp
+
+database:
+  host: localhost
+  port: 5432
+  username: admin
+  ssl: true
