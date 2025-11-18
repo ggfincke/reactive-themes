@@ -3,9 +3,17 @@
 
 // condition object defining when a rule should match
 export interface RuleCondition {
+    // File-based conditions
     language?: string;
     pattern?: string;
     workspaceName?: string;
+
+    // Context-based conditions
+    debugSession?: 'active' | 'inactive';
+    debugType?: string;
+    testState?: 'running' | 'failed' | 'passed' | 'none';
+    timerInterval?: number; // minutes
+    viewMode?: 'diff' | 'merge' | 'normal';
 }
 
 // single theme rule mapping conditions to a theme
