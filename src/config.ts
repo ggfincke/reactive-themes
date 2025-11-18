@@ -48,9 +48,22 @@ export function validateRule(rule: ThemeRule): boolean {
         return false;
     }
 
-    // require at least one condition
-    const hasCondition = rule.when.language || rule.when.pattern || rule.when.workspaceName;
-    return Boolean(hasCondition);
+    // require at least one condition (file-based or context-based)
+    const hasCondition = (
+        rule.when.language !== undefined ||
+        rule.when.pattern !== undefined ||
+        rule.when.workspaceName !== undefined ||
+        rule.when.debugSession !== undefined ||
+        rule.when.debugType !== undefined ||
+        rule.when.testState !== undefined ||
+        rule.when.timerInterval !== undefined ||
+        rule.when.viewMode !== undefined
+    );
+
+    // timer interval, if provided, must be positive
+    const validTimer = rule.when.timerInterval === undefined || rule.when.timerInterval > 0;
+
+    return Boolean(hasCondition && validTimer);
 }
 
 // * validate configuration & collect errors
