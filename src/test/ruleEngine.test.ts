@@ -24,9 +24,70 @@ suite('Rule Engine', () => {
             }
         } as unknown as vscode.TextEditor;
 
-        const result = evaluateRules(rules, editor);
+        const context = { debugSession: 'inactive' as const, testState: 'none' as const, viewMode: 'normal' as const, timerTick: 0 };
+        const result = evaluateRules(rules, editor, context);
         assert.ok(result.matched);
         assert.strictEqual(result.theme, 'PatternTheme');
         assert.strictEqual(result.rule?.name, 'Pattern rule');
+    });
+
+    test('matches context-based conditions for debug/test/view modes', () => {
+        const rules: ThemeRule[] = [
+            {
+                name: 'Debug diff view',
+                when: { debugSession: 'active', testState: 'running', viewMode: 'diff' },
+                theme: 'DebugTheme'
+            },
+            { name: 'Fallback', when: {}, theme: 'FallbackTheme' }
+        ];
+
+        const editor = {
+            document: {
+                languageId: 'typescript',
+                uri: vscode.Uri.file('/workspace/src/main.ts')
+            }
+        } as unknown as vscode.TextEditor;
+
+        const context = {
+            debugSession: 'active' as const,
+            testState: 'running' as const,
+            viewMode: 'diff' as const,
+            timerTick: 0
+        };
+
+        const result = evaluateRules(rules, editor, context);
+        assert.ok(result.matched);
+        assert.strictEqual(result.theme, 'DebugTheme');
+    });
+
+    test('timer-based rules only match on timer ticks', () => {
+        const rules: ThemeRule[] = [
+            { name: 'Timer rule', when: { timerInterval: 5 }, theme: 'TimerTheme' }
+        ];
+
+        const editor = {
+            document: {
+                languageId: 'typescript',
+                uri: vscode.Uri.file('/workspace/src/main.ts')
+            }
+        } as unknown as vscode.TextEditor;
+
+        const context = {
+            debugSession: 'inactive' as const,
+            testState: 'none' as const,
+            viewMode: 'normal' as const,
+            timerTick: 0
+        };
+
+        const inactiveResult = evaluateRules(rules, editor, context);
+        assert.strictEqual(inactiveResult.matched, false);
+
+        const activeResult = evaluateRules(rules, editor, context, {
+            allowTimerRules: true,
+            activeTimerRuleIndices: new Set([0]),
+            timerOnly: true
+        });
+        assert.ok(activeResult.matched);
+        assert.strictEqual(activeResult.theme, 'TimerTheme');
     });
 });

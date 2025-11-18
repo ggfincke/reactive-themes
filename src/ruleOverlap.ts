@@ -43,6 +43,28 @@ const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
     clojure: ['.clj', '.cljs', '.cljc'],
 };
 
+export function getRuleConditionKey(rule: ThemeRule): string {
+    const when = rule.when;
+    return [
+        when.language ?? '',
+        when.pattern ?? '',
+        when.workspaceName ?? '',
+        when.debugSession ?? '',
+        when.debugType ?? '',
+        when.testState ?? '',
+        when.timerInterval?.toString() ?? '',
+        when.viewMode ?? ''
+    ].join('|||');
+}
+
+export function rulesMatchExactly(ruleA: ThemeRule, ruleB: ThemeRule): boolean {
+    return rulesHaveIdenticalConditions(ruleA, ruleB) && ruleA.theme === ruleB.theme;
+}
+
+export function rulesHaveIdenticalConditions(ruleA: ThemeRule, ruleB: ThemeRule): boolean {
+    return getRuleConditionKey(ruleA) === getRuleConditionKey(ruleB);
+}
+
 // * determine if two rules overlap in effect
 export function rulesOverlap(ruleA: ThemeRule, ruleB: ThemeRule): boolean {
     if (ruleA === ruleB) {
@@ -52,6 +74,20 @@ export function rulesOverlap(ruleA: ThemeRule, ruleB: ThemeRule): boolean {
     const whenA = ruleA.when;
     const whenB = ruleB.when;
 
+    const isTimerA = whenA.timerInterval !== undefined;
+    const isTimerB = whenB.timerInterval !== undefined;
+
+    // timer-based rules are evaluated separately; they do not overlap with non-timer rules
+    if (isTimerA !== isTimerB) {
+        return false;
+    }
+
+    // exact duplicate: identical condition structure and values
+    if (rulesHaveIdenticalConditions(ruleA, ruleB)) {
+        return true;
+    }
+
+    // file-based conditions
     const hasLanguageA = Boolean(whenA.language);
     const hasLanguageB = Boolean(whenB.language);
     const hasPatternA = Boolean(whenA.pattern);
@@ -59,32 +95,46 @@ export function rulesOverlap(ruleA: ThemeRule, ruleB: ThemeRule): boolean {
     const hasWorkspaceA = Boolean(whenA.workspaceName);
     const hasWorkspaceB = Boolean(whenB.workspaceName);
 
-    const sameLanguage = whenA.language && whenB.language && whenA.language === whenB.language;
-    const samePattern = whenA.pattern && whenB.pattern && whenA.pattern === whenB.pattern;
-    const sameWorkspace = whenA.workspaceName && whenB.workspaceName && whenA.workspaceName === whenB.workspaceName;
+    // context compatibility: treat undefined as a wildcard ("any")
+    const contextsCompatible =
+        (!whenA.debugSession || !whenB.debugSession || whenA.debugSession === whenB.debugSession) &&
+        (!whenA.debugType || !whenB.debugType || whenA.debugType === whenB.debugType) &&
+        (!whenA.testState || !whenB.testState || whenA.testState === whenB.testState) &&
+        (!whenA.timerInterval || !whenB.timerInterval || whenA.timerInterval === whenB.timerInterval) &&
+        (!whenA.viewMode || !whenB.viewMode || whenA.viewMode === whenB.viewMode);
 
-    // exact duplicate: identical condition structure and values
-    if (hasLanguageA === hasLanguageB &&
-        hasPatternA === hasPatternB &&
-        hasWorkspaceA === hasWorkspaceB) {
-        const conditionsMatch =
-            (!hasLanguageA || sameLanguage) &&
-            (!hasPatternA || samePattern) &&
-            (!hasWorkspaceA || sameWorkspace);
+    if (!contextsCompatible) {
+        return false;
+    }
 
-        if (conditionsMatch) {
-            return true;
-        }
+    // check high-level compatibility before deeper overlap heuristics
+    const languageCompatible = !whenA.language || !whenB.language || whenA.language === whenB.language;
+    const workspaceCompatible = !whenA.workspaceName || !whenB.workspaceName || whenA.workspaceName === whenB.workspaceName;
+
+    if (!languageCompatible || !workspaceCompatible) {
+        return false;
+    }
+
+    // consider overlap when patterns are missing, equal, or likely subsets
+    const patternsLikelyOverlap =
+        !whenA.pattern ||
+        !whenB.pattern ||
+        whenA.pattern === whenB.pattern ||
+        whenA.pattern.includes(whenB.pattern) ||
+        whenB.pattern.includes(whenA.pattern);
+
+    if (patternsLikelyOverlap) {
+        return true;
     }
 
     // functional overlap between language-only and pattern-only rules (e.g., python vs **/*.py)
-    if (whenA.language && whenB.pattern && !whenB.language) {
+    if (contextsCompatible && whenA.language && whenB.pattern && !whenB.language) {
         if (isLanguagePatternOverlap(whenA.language, whenB.pattern)) {
             return true;
         }
     }
 
-    if (whenB.language && whenA.pattern && !whenA.language) {
+    if (contextsCompatible && whenB.language && whenA.pattern && !whenA.language) {
         if (isLanguagePatternOverlap(whenB.language, whenA.pattern)) {
             return true;
         }
