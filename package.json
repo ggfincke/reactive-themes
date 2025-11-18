@@ -51,6 +51,16 @@
         "command": "reactiveThemes.cleanupDuplicates",
         "title": "Find and Remove Duplicate Rules",
         "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.testRule",
+        "title": "Test Rule (Preview)",
+        "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.lintRules",
+        "title": "Lint Rules",
+        "category": "Reactive Themes"
       }
     ],
     "configuration": {
@@ -88,6 +98,30 @@
                   "workspaceName": {
                     "type": "string",
                     "description": "Match when in a workspace with this name"
+                  },
+                  "debugSession": {
+                    "type": "string",
+                    "enum": ["active", "inactive"],
+                    "description": "Match when a debug session is active or inactive"
+                  },
+                  "debugType": {
+                    "type": "string",
+                    "description": "Match specific debug type (e.g., 'node', 'python', 'chrome')"
+                  },
+                  "testState": {
+                    "type": "string",
+                    "enum": ["running", "failed", "passed", "none"],
+                    "description": "Match based on test execution state"
+                  },
+                  "timerInterval": {
+                    "type": "number",
+                    "minimum": 1,
+                    "description": "Apply theme every N minutes (timer-based trigger)"
+                  },
+                  "viewMode": {
+                    "type": "string",
+                    "enum": ["diff", "merge", "normal"],
+                    "description": "Match when viewing diffs, resolving merge conflicts, or in normal editing mode"
                   }
                 }
               },

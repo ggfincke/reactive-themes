@@ -82,9 +82,16 @@ This extension is meant to:
 
 The extension automatically changes your VS Code color theme based on:
 
+**File-Based Triggers:**
 - **Language ID** – Different themes for TypeScript, Markdown, Python, etc.
 - **File path patterns** – Glob patterns like `**/docs/**`, `**/*.test.ts`
 - **Workspace name** – Different themes per project/workspace folder
+
+**Context-Based Triggers:**
+- **Debug sessions** – Switch themes when debugging starts/stops
+- **Test execution** – Different themes when tests are running, passed, or failed
+- **Timer intervals** – Rotate themes at regular intervals (e.g., every 30 minutes)
+- **View modes** – Special themes for diff views, merge conflict resolution, or normal editing
 
 ### Rule-Based Configuration
 
@@ -96,13 +103,18 @@ Define declarative rules in VS Code settings:
 
 ### Commands
 
-Three commands to control the extension:
+Key commands available:
 
 | Command | Description |
 |---------|-------------|
 | `Reactive Themes: Toggle` | Enable/disable reactive theme switching |
 | `Reactive Themes: Reload Rules` | Reload rules after editing settings (also reloads automatically) |
 | `Reactive Themes: Show Active Rule` | Debug which rule matched the current file |
+| `Reactive Themes: Create Rule from Current File` | Build a rule from the active editor context |
+| `Reactive Themes: Manage Rules` | Edit, rename, or delete existing rules |
+| `Reactive Themes: Find and Remove Duplicate Rules` | Detect and clean up duplicates |
+| `Reactive Themes: Test Rule (Preview)` | Simulate rule matching against current/custom context |
+| `Reactive Themes: Lint Rules` | Run linter for duplicates, unreachable, invalid languages, and missing themes |
 
 ### Smart Behavior
 
@@ -119,15 +131,18 @@ Three commands to control the extension:
 
 **Short-Term**
 - Named **profiles** (e.g., "Focus Mode", "Presentation Mode") that switch multiple rules at once
-- Time-based rules (e.g., use a light theme during the day, dark theme at night)
+- Time-of-day rules (e.g., use a light theme during the day, dark theme at night)
 - Quick pick UI to preview profiles / rules and apply them
 - Per-workspace override file (e.g. `.reactive-themes.json`) so projects can ship their own suggestions
+- Theme rotation for timer rules (cycle through multiple themes)
 
 **Long-Term Ideas**
 - Integration with Git branches (different theme per branch)
 - "Session modes" (coding vs. writing vs. reviewing)
 - Export/import rule sets and share them via a simple JSON format
 - Optional status bar item showing the active rule/profile
+- Enhanced test framework integration (direct API support vs. task monitoring)
+- Custom context providers via extension API
 
 ---
 
@@ -263,8 +278,229 @@ Define rules in your VS Code settings:
       "workspaceName": "hopper-backend"
     },
     "theme": "One Dark Pro"
+  },
+
+  // Context-based rules
+  {
+    "name": "Debug mode - high contrast",
+    "when": {
+      "debugSession": "active"
+    },
+    "theme": "Monokai"
+  },
+  {
+    "name": "Debug Node.js specifically",
+    "when": {
+      "debugSession": "active",
+      "debugType": "node"
+    },
+    "theme": "GitHub Dark High Contrast"
+  },
+  {
+    "name": "Test failure alert",
+    "when": {
+      "testState": "failed"
+    },
+    "theme": "Red"
+  },
+  {
+    "name": "Tests running",
+    "when": {
+      "testState": "running"
+    },
+    "theme": "Solarized Dark"
+  },
+  {
+    "name": "Diff view - high contrast",
+    "when": {
+      "viewMode": "diff"
+    },
+    "theme": "GitHub Light High Contrast"
+  },
+  {
+    "name": "Merge conflict resolution",
+    "when": {
+      "viewMode": "merge"
+    },
+    "theme": "Dracula"
+  },
+  {
+    "name": "Pomodoro timer - 25 minute intervals",
+    "when": {
+      "timerInterval": 25
+    },
+    "theme": "Tokyo Night"
+  },
+
+  // Combined file + context rules
+  {
+    "name": "Debug TypeScript - special theme",
+    "when": {
+      "language": "typescript",
+      "debugSession": "active"
+    },
+    "theme": "Dracula"
   }
 ]
+```
+
+### Context Trigger Reference
+
+Beyond file-based conditions, Reactive Themes now supports context-based triggers that respond to your development environment state.
+
+#### Debug Session Triggers
+
+Switch themes based on debugging state:
+
+**`debugSession`**: `"active"` | `"inactive"`
+- Triggers when a debug session starts or stops
+- Useful for high-contrast themes during debugging
+
+**`debugType`**: string (e.g., `"node"`, `"python"`, `"chrome"`)
+- Match specific debug configurations
+- Combine with `debugSession: "active"` for fine-grained control
+
+**Examples:**
+```json
+// Any debug session
+{
+  "name": "Debugging mode",
+  "when": { "debugSession": "active" },
+  "theme": "Monokai"
+}
+
+// Specific debug type
+{
+  "name": "Node.js debugging",
+  "when": {
+    "debugSession": "active",
+    "debugType": "node"
+  },
+  "theme": "GitHub Dark High Contrast"
+}
+```
+
+#### Test Execution Triggers
+
+React to test runs and their results:
+
+**`testState`**: `"running"` | `"failed"` | `"passed"` | `"none"`
+- Detects when tests are executed via VSCode tasks
+- Works with common test frameworks (Jest, Mocha, pytest, etc.)
+- Automatically resets to `"none"` after a few seconds
+
+**Examples:**
+```json
+// Red theme when tests fail
+{
+  "name": "Test failure alert",
+  "when": { "testState": "failed" },
+  "theme": "Red"
+}
+
+// Calm theme while tests run
+{
+  "name": "Tests running",
+  "when": { "testState": "running" },
+  "theme": "Solarized Dark"
+}
+```
+
+**Note:** Test detection works by monitoring VSCode tasks. Tasks with names containing keywords like "test", "jest", "mocha", "pytest", etc. are recognized as test tasks.
+
+#### Timer-Based Triggers
+
+Rotate themes at regular intervals:
+
+**`timerInterval`**: number (minutes)
+- Applies theme every N minutes
+- Useful for Pomodoro technique or preventing eye strain
+- Multiple timer rules can coexist with different intervals
+
+**Examples:**
+```json
+// Switch every 25 minutes (Pomodoro)
+{
+  "name": "Pomodoro dark",
+  "when": { "timerInterval": 25 },
+  "theme": "Tokyo Night"
+}
+
+// Switch every hour
+{
+  "name": "Hourly rotation",
+  "when": { "timerInterval": 60 },
+  "theme": "One Dark Pro"
+}
+```
+
+**Note:** Timer rules trigger independently of file changes. The theme will switch even if you're still editing the same file.
+
+#### View Mode Triggers
+
+Adapt themes to different editing modes:
+
+**`viewMode`**: `"diff"` | `"merge"` | `"normal"`
+- `"diff"` – Detected when viewing file comparisons (git diff, side-by-side)
+- `"merge"` – Detected when merge conflict markers are present in the active file
+- `"normal"` – Regular editing mode
+
+**Examples:**
+```json
+// High contrast for diff views
+{
+  "name": "Diff view",
+  "when": { "viewMode": "diff" },
+  "theme": "GitHub Light High Contrast"
+}
+
+// Alert theme for merge conflicts
+{
+  "name": "Merge conflicts",
+  "when": { "viewMode": "merge" },
+  "theme": "Dracula"
+}
+```
+
+**Diff Detection:** The extension uses heuristics to detect diff views:
+- Git diff schemes (`git://`, `vscode-scm://`)
+- Side-by-side editor layouts
+- Multiple editors showing similar file names
+
+#### Combining Conditions
+
+You can combine file-based and context-based conditions. ALL conditions must match (AND logic):
+
+```json
+// Only when debugging TypeScript files
+{
+  "name": "Debug TS",
+  "when": {
+    "language": "typescript",
+    "debugSession": "active"
+  },
+  "theme": "Monokai Dimmed"
+}
+
+// Test failures in a specific workspace
+{
+  "name": "Backend test failures",
+  "when": {
+    "workspaceName": "backend",
+    "testState": "failed"
+  },
+  "theme": "Red"
+}
+
+// Diff view for markdown files only
+{
+  "name": "Markdown diffs",
+  "when": {
+    "language": "markdown",
+    "viewMode": "diff"
+  },
+  "theme": "GitHub Light"
+}
 ```
 
 ### Important: Language IDs and Theme Names
@@ -316,6 +552,7 @@ This will show:
 - The current file's language ID (e.g., `typescriptreact`)
 - The file path
 - The workspace name
+- **Current context state** (debug session, test state, view mode)
 - Which rule matched (if any)
 - What theme is being applied
 
@@ -551,11 +788,26 @@ examples/
 
 The codebase follows clean separation of concerns:
 
+**Core:**
 - **[extension.ts](src/extension.ts)** – Entry point, command registration, event listeners
 - **[types.ts](src/types.ts)** – TypeScript interfaces for rules and configuration
 - **[config.ts](src/config.ts)** – Configuration loading and validation
 - **[themeManager.ts](src/themeManager.ts)** – Theme application with debouncing
 - **[ruleEngine.ts](src/ruleEngine.ts)** – Rule matching logic and glob pattern support
+- **[contextManager.ts](src/contextManager.ts)** – State management for context triggers
+
+**Context Triggers:**
+- **[triggers/debugTrigger.ts](src/triggers/debugTrigger.ts)** – Debug session monitoring
+- **[triggers/testTrigger.ts](src/triggers/testTrigger.ts)** – Test execution detection
+- **[triggers/timerTrigger.ts](src/triggers/timerTrigger.ts)** – Timer-based theme rotation
+- **[triggers/viewTrigger.ts](src/triggers/viewTrigger.ts)** – Diff/merge view detection
+
+**Commands:**
+- **[commands/createRule.ts](src/commands/createRule.ts)** – Interactive rule creation
+- **[commands/manageRules.ts](src/commands/manageRules.ts)** – Rule management UI
+- **[commands/cleanupRules.ts](src/commands/cleanupRules.ts)** – Duplicate rule cleanup
+- **[commands/testRule.ts](src/commands/testRule.ts)** – Rule testing utility
+- **[commands/lintRules.ts](src/commands/lintRules.ts)** – Rule validation and linting
 
 ### Running Tests
 
@@ -625,4 +877,3 @@ Special thanks to the VS Code extension development community.
 ---
 
 **Questions or issues?** Open an issue on [GitHub](https://github.com/yourusername/reactive-themes/issues)
-
