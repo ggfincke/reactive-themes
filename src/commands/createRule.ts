@@ -1,22 +1,23 @@
 // src/commands/createRule.ts
 // Command for creating a new theme rule from the current file
 
-import * as vscode from 'vscode';
-import * as path from 'path';
-import { ThemeRule } from '../types';
-import { saveRule, loadConfig, updateRule } from '../config';
-import { describeThemeType, getInstalledThemes } from '../themeCatalog';
-import { findOverlappingRules } from '../ruleOverlap';
-import { getRuleDescription } from '../ruleEngine';
+import * as vscode from "vscode";
+import * as path from "path";
+import { ThemeRule } from "../types";
+import { saveRule, loadConfig, updateRule } from "../config";
+import { findOverlappingRules } from "../ruleOverlap";
+import { selectTheme, confirmAction } from "./uiHelpers";
+import { validateRuleName } from "../utils/validators";
+import { formatRuleConditions } from "../utils/ruleFormatters";
 
 // * create a new rule based on the current active editor
 export async function createRuleFromCurrentFile(): Promise<void> {
-    console.log('[Reactive Themes] Creating rule from current file');
+    console.log("[Reactive Themes] Creating rule from current file");
 
     // check for active editor
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-        vscode.window.showWarningMessage('No active editor. Please open a file first.');
+        vscode.window.showWarningMessage("No active editor. Please open a file first.");
         return;
     }
 
@@ -32,10 +33,17 @@ export async function createRuleFromCurrentFile(): Promise<void> {
     }
 
     // step 2: select theme
-    const selectedTheme = await selectTheme();
-    if (!selectedTheme) {
+    const selected = await selectTheme({
+        title: "Create Rule: Step 2 of 3 - Choose Theme",
+    });
+    if (!selected) {
         return; // user cancelled
     }
+
+    const selectedTheme = {
+        name: selected.id || selected.label,
+        displayName: selected.label,
+    };
 
     // step 3: confirm and save
     await confirmAndSaveRule(matchType, selectedTheme);
@@ -46,15 +54,15 @@ async function selectMatchType(
     languageId: string,
     fileName: string,
     fileExtension: string
-): Promise<{ type: 'language' | 'glob'; value: string; displayName: string } | undefined> {
+): Promise<{ type: "language" | "glob"; value: string; displayName: string } | undefined> {
     const items: vscode.QuickPickItem[] = [];
 
     // option 1: match by language
-    if (languageId && languageId !== 'plaintext') {
+    if (languageId && languageId !== "plaintext") {
         items.push({
             label: `$(symbol-keyword) Language: ${languageId}`,
-            description: 'Match all files with this language',
-            detail: `Will apply to all ${languageId} files`
+            description: "Match all files with this language",
+            detail: `Will apply to all ${languageId} files`,
         });
     }
 
@@ -63,28 +71,28 @@ async function selectMatchType(
         const globPattern = `**/*${fileExtension}`;
         items.push({
             label: `$(file-code) Glob pattern: ${globPattern}`,
-            description: 'Match files by pattern',
-            detail: `Will apply to all files matching ${globPattern}`
+            description: "Match files by pattern",
+            detail: `Will apply to all files matching ${globPattern}`,
         });
     } else {
         // fallback glob based on full filename
         const globPattern = `**/${fileName}`;
         items.push({
             label: `$(file-code) Glob pattern: ${globPattern}`,
-            description: 'Match files by pattern',
-            detail: `Will apply to all files matching ${globPattern}`
+            description: "Match files by pattern",
+            detail: `Will apply to all files matching ${globPattern}`,
         });
     }
 
     // handle edge case: no useful match options
     if (items.length === 0) {
-        vscode.window.showWarningMessage('Cannot infer match conditions from the current file.');
+        vscode.window.showWarningMessage("Cannot infer match conditions from the current file.");
         return undefined;
     }
 
     const selected = await vscode.window.showQuickPick(items, {
-        title: 'Create Rule: Step 1 of 3 - Choose Match Type',
-        placeHolder: 'How should this rule match files?'
+        title: "Create Rule: Step 1 of 3 - Choose Match Type",
+        placeHolder: "How should this rule match files?",
     });
 
     if (!selected) {
@@ -92,77 +100,33 @@ async function selectMatchType(
     }
 
     // parse selection
-    if (selected.label.includes('Language:')) {
+    if (selected.label.includes("Language:")) {
         return {
-            type: 'language',
+            type: "language",
             value: languageId,
-            displayName: `Language: ${languageId}`
+            displayName: `Language: ${languageId}`,
         };
     } else {
         const globPattern = fileExtension ? `**/*${fileExtension}` : `**/${fileName}`;
         return {
-            type: 'glob',
+            type: "glob",
             value: globPattern,
-            displayName: `Pattern: ${globPattern}`
+            displayName: `Pattern: ${globPattern}`,
         };
     }
-}
-
-// step 2: select theme from installed themes
-async function selectTheme(): Promise<{ name: string; displayName: string } | undefined> {
-    const installedThemes = getInstalledThemes();
-
-    if (installedThemes.length === 0) {
-        vscode.window.showWarningMessage('No themes found. Please install at least one color theme.');
-        return undefined;
-    }
-
-    // sort themes alphabetically by label
-    installedThemes.sort((a, b) => a.label.localeCompare(b.label));
-
-    // build QuickPick items
-    const items: vscode.QuickPickItem[] = installedThemes.map(theme => {
-        // determine theme type description
-        return {
-            label: theme.label,
-            description: theme.extensionName,
-            detail: describeThemeType(theme.uiTheme)
-        };
-    });
-
-    const selected = await vscode.window.showQuickPick(items, {
-        title: 'Create Rule: Step 2 of 3 - Choose Theme',
-        placeHolder: 'Select a theme to apply',
-        matchOnDescription: true,
-        matchOnDetail: true
-    });
-
-    if (!selected) {
-        return undefined;
-    }
-
-    return {
-        name: selected.label,
-        displayName: selected.label
-    };
 }
 
 // step 3: confirm and save rule
 async function confirmAndSaveRule(
-    matchType: { type: 'language' | 'glob'; value: string; displayName: string },
+    matchType: { type: "language" | "glob"; value: string; displayName: string },
     theme: { name: string; displayName: string }
 ): Promise<void> {
     // generate rule name
     const ruleName = await vscode.window.showInputBox({
-        prompt: 'Enter a name for this rule',
+        prompt: "Enter a name for this rule",
         placeHolder: 'e.g., "Dark theme for TypeScript"',
         value: `${theme.displayName} for ${matchType.displayName}`,
-        validateInput: (value) => {
-            if (!value || value.trim().length === 0) {
-                return 'Rule name cannot be empty';
-            }
-            return undefined;
-        }
+        validateInput: validateRuleName,
     });
 
     if (!ruleName) {
@@ -172,10 +136,11 @@ async function confirmAndSaveRule(
     // build rule object
     const rule: ThemeRule = {
         name: ruleName.trim(),
-        when: matchType.type === 'language'
-            ? { language: matchType.value }
-            : { pattern: matchType.value },
-        theme: theme.name
+        when:
+            matchType.type === "language"
+                ? { language: matchType.value }
+                : { pattern: matchType.value },
+        theme: theme.name,
     };
 
     // check for overlapping rules
@@ -184,35 +149,36 @@ async function confirmAndSaveRule(
 
     if (overlappingRules.length > 0) {
         // show warning about overlapping rules
-        const overlapMessage = overlappingRules.length === 1
-            ? `This rule overlaps with existing rule:\n"${overlappingRules[0].name}"`
-            : `This rule overlaps with ${overlappingRules.length} existing rules:\n${overlappingRules.map(r => `• "${r.name}"`).join('\n')}`;
+        const overlapMessage =
+            overlappingRules.length === 1
+                ? `This rule overlaps with existing rule:\n"${overlappingRules[0].name}"`
+                : `This rule overlaps with ${overlappingRules.length} existing rules:\n${overlappingRules.map((r) => `• "${r.name}"`).join("\n")}`;
 
         const action = await vscode.window.showWarningMessage(
             `Duplicate Rule Detected\n\n${overlapMessage}\n\nBecause rules use first-match-wins strategy, the new rule may never be applied.`,
             { modal: true },
-            'Replace Existing',
-            'Cancel'
+            "Replace Existing",
+            "Cancel"
         );
 
-        if (action === 'Cancel' || !action) {
+        if (action === "Cancel" || !action) {
             return;
         }
 
-        if (action === 'Replace Existing') {
+        if (action === "Replace Existing") {
             // if multiple overlaps, let user choose which to replace
             let ruleToReplace = overlappingRules[0];
 
             if (overlappingRules.length > 1) {
-                const items = overlappingRules.map(r => ({
+                const items = overlappingRules.map((r) => ({
                     label: r.name,
-                    description: getRuleDescription(r),
-                    rule: r
+                    description: formatRuleConditions(r, { mode: "compact" }) as string,
+                    rule: r,
                 }));
 
                 const selected = await vscode.window.showQuickPick(items, {
-                    title: 'Select Rule to Replace',
-                    placeHolder: 'Which rule should be replaced?'
+                    title: "Select Rule to Replace",
+                    placeHolder: "Which rule should be replaced?",
                 });
 
                 if (!selected) {
@@ -223,14 +189,16 @@ async function confirmAndSaveRule(
             }
 
             // find index and replace
-            const indexToReplace = config.rules.findIndex(r => r === ruleToReplace);
+            const indexToReplace = config.rules.findIndex((r) => r === ruleToReplace);
             if (indexToReplace !== -1) {
                 try {
                     await updateRule(indexToReplace, rule);
-                    vscode.window.showInformationMessage(`Rule "${ruleName}" replaced "${ruleToReplace.name}" successfully!`);
-                    console.log('[Reactive Themes] Rule replaced:', rule);
+                    vscode.window.showInformationMessage(
+                        `Rule "${ruleName}" replaced "${ruleToReplace.name}" successfully!`
+                    );
+                    console.log("[Reactive Themes] Rule replaced:", rule);
                 } catch (error) {
-                    console.error('[Reactive Themes] Failed to replace rule:', error);
+                    console.error("[Reactive Themes] Failed to replace rule:", error);
                     vscode.window.showErrorMessage(
                         `Failed to replace rule "${ruleToReplace.name}": ${error instanceof Error ? error.message : String(error)}`
                     );
@@ -241,18 +209,21 @@ async function confirmAndSaveRule(
     }
 
     // confirm with summary
-    const matchInfo = matchType.type === 'language'
-        ? `Language: ${matchType.value}`
-        : `Pattern: ${matchType.value}`;
+    const matchInfo =
+        matchType.type === "language"
+            ? `Language: ${matchType.value}`
+            : `Pattern: ${matchType.value}`;
 
-    const confirmation = await vscode.window.showInformationMessage(
+    const confirmed = await confirmAction(
         `Create rule: [${matchInfo}] → [${theme.displayName}]`,
-        { modal: true },
-        'Save Rule',
-        'Cancel'
+        {
+            confirmLabel: "Save Rule",
+            modal: true,
+            severity: "info",
+        }
     );
 
-    if (confirmation !== 'Save Rule') {
+    if (!confirmed) {
         return;
     }
 
@@ -260,9 +231,9 @@ async function confirmAndSaveRule(
     try {
         await saveRule(rule);
         vscode.window.showInformationMessage(`Rule "${ruleName}" created successfully!`);
-        console.log('[Reactive Themes] Rule created:', rule);
+        console.log("[Reactive Themes] Rule created:", rule);
     } catch (error) {
         // error already shown by saveRule helper
-        console.error('[Reactive Themes] Failed to create rule:', error);
+        console.error("[Reactive Themes] Failed to create rule:", error);
     }
 }

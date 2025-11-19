@@ -1,153 +1,107 @@
 // src/commands/cleanupRules.ts
 // Command for finding and removing duplicate/overlapping rules
 
-import * as vscode from 'vscode';
-import { ThemeRule } from '../types';
-import { loadConfig, deleteRule } from '../config';
-import { buildOverlapMap } from '../ruleOverlap';
-import { getRuleDescription } from '../ruleEngine';
+import * as vscode from "vscode";
+import { ThemeRule } from "../types";
+import { loadConfig } from "../config";
+import { lintRules, LintIssue } from "../ruleLinter";
+import { confirmDeleteRule as confirmDeleteRulePrompt, deleteRules } from "../utils/ruleOperations";
+import { handleOperationError } from "../utils/errorHandling";
+import { confirmAction, showLintIssuePicker } from "./uiHelpers";
 
 // * find & clean up duplicate/overlapping rules
 export async function cleanupDuplicateRules(): Promise<void> {
-    console.log('[Reactive Themes] Cleaning up duplicate rules');
+    console.log("[Reactive Themes] Cleaning up duplicate rules");
 
     const config = loadConfig();
 
     if (config.rules.length === 0) {
-        vscode.window.showInformationMessage('No rules configured yet.');
+        vscode.window.showInformationMessage("No rules configured yet.");
         return;
     }
 
-    // find all overlapping rules
-    const overlapsMap = buildOverlapMap(config.rules);
-
-    if (overlapsMap.size === 0) {
-        vscode.window.showInformationMessage('No duplicate or overlapping rules found!');
-        return;
-    }
-
-    // show summary
-    const summary = await vscode.window.showInformationMessage(
-        `Found ${overlapsMap.size} rule(s) with overlaps.\n\nDo you want to review and clean them up?`,
-        { modal: true },
-        'Review Rules',
-        'Cancel'
+    // reuse the linter so overlap/duplicate logic stays centralized
+    const lintResult = await lintRules(config.rules);
+    const cleanupCandidates = lintResult.issues.filter(
+        (issue) => issue.type === "duplicate" || issue.type === "unreachable"
     );
 
-    if (summary !== 'Review Rules') {
+    if (cleanupCandidates.length === 0) {
+        vscode.window.showInformationMessage("No duplicate or overlapping rules found!");
         return;
     }
 
-    // show overlapping rules and allow deletion
-    await reviewOverlappingRules(config.rules, overlapsMap);
+    await reviewLintIssues(config.rules, cleanupCandidates);
 }
 
-// review overlapping rules & allow selective deletion
-async function reviewOverlappingRules(rules: ThemeRule[], overlapsMap: Map<number, ThemeRule[]>): Promise<void> {
-    // build list of overlapping rules
-    const items: Array<vscode.QuickPickItem & { index: number; canPick: boolean }> = [];
+async function reviewLintIssues(rules: ThemeRule[], issues: LintIssue[]): Promise<void> {
+    const duplicateCount = issues.filter((i) => i.type === "duplicate").length;
+    const extraItems =
+        duplicateCount > 0
+            ? [
+                  {
+                      label: "$(trash) Delete All Duplicates",
+                      description: `Remove ${duplicateCount} duplicate rule(s)`,
+                      action: "delete-duplicates",
+                  },
+              ]
+            : [];
 
-    for (const [index, overlapping] of overlapsMap.entries()) {
-        const rule = rules[index];
-        items.push({
-            label: `$(warning) ${rule.name}`,
-            description: getRuleDescription(rule),
-            detail: `Overlaps with: ${overlapping.map(r => r.name).join(', ')}`,
-            index: index,
-            canPick: true
-        });
-    }
-
-    // add bulk delete option at the top
-    items.unshift({
-        label: '$(trash) Delete All Overlapping Rules',
-        description: `Remove all ${overlapsMap.size} overlapping rules`,
-        detail: 'WARNING: This will delete all rules shown below',
-        index: -1,
-        canPick: true
-    });
-
-    const selected = await vscode.window.showQuickPick(items, {
-        title: `Overlapping Rules (${overlapsMap.size} total)`,
-        placeHolder: 'Select a rule to delete, or choose bulk delete',
-        canPickMany: false
+    const selected = await showLintIssuePicker(issues, {
+        title: `Duplicate/Overlapping Rules (${issues.length} total)`,
+        placeHolder: "Select a rule to delete or choose bulk delete",
+        extraItems,
     });
 
     if (!selected) {
         return;
     }
 
-    // handle bulk delete
-    if (selected.index === -1) {
-        await bulkDeleteOverlappingRules(rules, overlapsMap);
-        return;
-    }
+    if (selected.action === "delete-duplicates") {
+        const duplicateIndices = issues
+            .filter((i) => i.type === "duplicate")
+            .map((i) => i.ruleIndex)
+            .sort((a, b) => b - a);
 
-    // handle single rule deletion
-    const rule = rules[selected.index];
-    const confirmation = await vscode.window.showWarningMessage(
-        `Delete overlapping rule "${rule.name}"?\n\n${getRuleDescription(rule)}`,
-        { modal: true },
-        'Delete',
-        'Cancel'
-    );
+        if (duplicateIndices.length === 0) {
+            vscode.window.showInformationMessage("No duplicate rules to delete.");
+            return;
+        }
 
-    if (confirmation === 'Delete') {
-        try {
-            await deleteRule(selected.index);
-            vscode.window.showInformationMessage(`Rule "${rule.name}" deleted successfully`);
-
-            // ask if user wants to continue reviewing
-            const continueReview = await vscode.window.showInformationMessage(
-                'Continue reviewing overlapping rules?',
-                'Yes',
-                'No'
-            );
-
-            if (continueReview === 'Yes') {
-                // reload and continue
-                await cleanupDuplicateRules();
+        const confirmed = await confirmAction(
+            `Delete ${duplicateIndices.length} duplicate rule(s)?`,
+            {
+                confirmLabel: "Delete",
+                modal: true,
+                severity: "warning",
             }
-        } catch (error) {
-            // error already shown by deleteRule helper
+        );
+        if (!confirmed) {
+            return;
         }
-    }
-}
 
-// bulk delete all overlapping rules
-async function bulkDeleteOverlappingRules(rules: ThemeRule[], overlapsMap: Map<number, ThemeRule[]>): Promise<void> {
-    const confirmation = await vscode.window.showWarningMessage(
-        `Delete ${overlapsMap.size} overlapping rules?\n\nThis action cannot be undone.`,
-        { modal: true },
-        'Delete All',
-        'Cancel'
-    );
-
-    if (confirmation !== 'Delete All') {
+        try {
+            await deleteRules(duplicateIndices);
+            vscode.window.showInformationMessage(
+                `Deleted ${duplicateIndices.length} duplicate rule(s)`
+            );
+        } catch (error) {
+            handleOperationError("delete duplicate rules", error, { showUser: true });
+        }
         return;
     }
 
-    // delete rules in reverse order to maintain indices
-    const indicesToDelete = Array.from(overlapsMap.keys()).sort((a, b) => b - a);
+    if (selected.issue) {
+        const rule = rules[selected.issue.ruleIndex];
+        const confirmed = await confirmDeleteRulePrompt(rule.name);
 
-    let deletedCount = 0;
-    let failedCount = 0;
-
-    for (const index of indicesToDelete) {
-        try {
-            await deleteRule(index);
-            deletedCount++;
-        } catch (error) {
-            failedCount++;
-            console.error('[Reactive Themes] Failed to delete rule at index', index, error);
+        if (confirmed) {
+            try {
+                await deleteRules([selected.issue.ruleIndex]);
+                vscode.window.showInformationMessage(`Rule "${rule.name}" deleted successfully`);
+            } catch (error) {
+                handleOperationError("delete rule", error, { showUser: true });
+            }
         }
-    }
-
-    if (failedCount === 0) {
-        vscode.window.showInformationMessage(`Successfully deleted ${deletedCount} overlapping rule(s)`);
-    } else {
-        vscode.window.showWarningMessage(
-            `Deleted ${deletedCount} rule(s), but ${failedCount} failed to delete. Check the console for details.`
-        );
     }
 }
