@@ -2,7 +2,7 @@
   "name": "reactive-themes",
   "displayName": "reactive-themes",
   "description": "Dynamically switch VS Code color themes based on file type, language, and workspace",
-  "version": "0.0.1",
+  "version": "0.3.0",
   "publisher": "ggfincke",
   "author": "Garrett Fincke",
   "repository": {

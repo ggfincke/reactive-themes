@@ -1,10 +1,15 @@
 # Reactive Themes for VS Code
 
-> **Status:** Pre-release (v0.0.1)
+> **Status:** Pre-release (v0.3.0) — actively developed; install from source for now.
 
-Reactive Themes is a VS Code extension that automatically switches your color theme based on **context** – the file type you're editing, the workspace you're in, or other rules you define.
+Reactive Themes is a VS Code extension that automatically switches your color theme based on **context** – the file type you're editing, the workspace you're in, or other rules you define. It also reacts to editor state like debugging, test runs, timers, and diff/merge views.
 
 The goal is to make your editor feel "alive" and tailored to what you're working on instead of using one static theme for everything.
+
+Current highlights:
+- File + context-aware rules (language, glob patterns, workspace name, debug/test/view/timer state)
+- Commands to manage, lint, test, and explain rules so you can see why a theme was chosen
+- Safe, debounced switching with fallbacks to your original theme
 
 ---
 
@@ -12,11 +17,11 @@ The goal is to make your editor feel "alive" and tailored to what you're working
 
 ### From Source (Development)
 
-This extension is currently in development and not yet published to the VS Code Marketplace.
+This extension is not yet published to the VS Code Marketplace. Install from source:
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/reactive-themes.git
+   git clone https://github.com/ggfincke/reactive-themes.git
    cd reactive-themes
    ```
 2. Install dependencies:
@@ -30,9 +35,9 @@ This extension is currently in development and not yet published to the VS Code 
 4. Press `F5` to launch the Extension Development Host
 5. Test with the example files in the `examples/` directory
 
-### From Marketplace (Coming Soon!)
+### Marketplace (planned)
 
-Once published, you'll be able to install directly from the VS Code Extensions marketplace.
+Once published you'll be able to install directly from the VS Code Marketplace. Until then, you can package a VSIX locally (with `vsce package`) and install it via VS Code's "Install from VSIX" command.
 
 ---
 
@@ -60,7 +65,7 @@ Get up and running in under a minute:
    ```
 5. **Open a Markdown file** and watch the theme change automatically!
 
-Use the command **"Reactive Themes: Show Active Rule"** to debug which rule is active.
+Use **"Reactive Themes: Show Active Rule"** to see what matched, or **"Reactive Themes: Explain Current Theme"** / **"Reactive Themes: Lint Rules"** when you want deeper diagnostics.
 
 ---
 
@@ -732,7 +737,7 @@ Want to contribute or modify the extension?
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/reactive-themes.git
+   git clone https://github.com/ggfincke/reactive-themes.git
    cd reactive-themes
    ```
 
@@ -758,23 +763,26 @@ The `examples/` directory contains multi-language files for testing:
 ```
 examples/
 ├── README.md               # Testing instructions
-├── bubble_sort.py         # Python
-├── bubble_sort.js         # JavaScript
-├── bubble_sort.ts         # TypeScript
-├── bubble_sort.go         # Go
-├── BubbleSort.java        # Java
-├── bubble_sort.rs         # Rust
-├── bubble_sort.cpp        # C++
-├── bubble_sort.test.ts    # Test file
-├── config.json            # JSON
-└── config.yaml            # YAML
+├── bubble_sort.py          # Python
+├── bubble_sort.js          # JavaScript
+├── bubble_sort.ts          # TypeScript
+├── bubble_sort.go          # Go
+├── BubbleSort.java         # Java
+├── bubble_sort.rs          # Rust
+├── bubble_sort.cpp         # C++
+├── bubble_sort.test.js     # JavaScript test file
+├── bubble_sort.test.ts     # TypeScript test file
+├── config.json             # JSON
+└── config.yaml             # YAML
 ```
+
+Source maps for the JavaScript fixtures are included to mirror the compiled output.
 
 **Quick test workflow:**
 1. Configure rules in your settings for different languages
 2. Open files from `examples/` directory
 3. Watch the theme change automatically as you switch files
-4. Use `Reactive Themes: Show Active Rule` to debug
+4. Use `Reactive Themes: Show Active Rule` or `Explain Current Theme` to debug; `Lint Rules` helps catch duplicates or invalid entries
 
 **Example test configuration:**
 ```json
@@ -797,6 +805,10 @@ The codebase follows clean separation of concerns:
 - **[themeManager.ts](src/themeManager.ts)** – Theme application with debouncing
 - **[ruleEngine.ts](src/ruleEngine.ts)** – Rule matching logic and glob pattern support
 - **[contextManager.ts](src/contextManager.ts)** – State management for context triggers
+- **[ruleLinter.ts](src/ruleLinter.ts)** – Lints rules for duplicates, unreachable cases, and invalid data
+- **[ruleOverlap.ts](src/ruleOverlap.ts)** – Overlap detection utilities shared by linting and cleanup
+- **[themeCatalog.ts](src/themeCatalog.ts)** – Reads installed themes for validation and prompts
+- **[utils/](src/utils)** – Shared helpers for commands, formatting, and validation
 
 **Context Triggers:**
 - **[triggers/debugTrigger.ts](src/triggers/debugTrigger.ts)** – Debug session monitoring
@@ -810,6 +822,8 @@ The codebase follows clean separation of concerns:
 - **[commands/cleanupRules.ts](src/commands/cleanupRules.ts)** – Duplicate rule cleanup
 - **[commands/testRule.ts](src/commands/testRule.ts)** – Rule testing utility
 - **[commands/lintRules.ts](src/commands/lintRules.ts)** – Rule validation and linting
+- **[commands/explainTheme.ts](src/commands/explainTheme.ts)** – Explain the currently applied theme and copy details
+- **[commands/uiHelpers.ts](src/commands/uiHelpers.ts)** – Shared UI helpers for command flows
 
 ### Running Tests
 
@@ -817,16 +831,16 @@ The codebase follows clean separation of concerns:
 npm test
 ```
 
-Note: Test coverage is currently minimal and needs expansion.
+Note: Integration coverage exists for rule evaluation and triggers but is still light; more tests are welcome.
 
 ### Building
 
-To package the extension:
+To package the extension into a `.vsix` (requires `vsce`, e.g. `npm install -g @vscode/vsce`):
 ```bash
-npm run package
+npx vsce package
 ```
 
-This creates a `.vsix` file you can install manually or publish to the marketplace.
+This runs the prepublish build and creates a `.vsix` file you can install manually or publish to the marketplace.
 
 ---
 
@@ -872,10 +886,10 @@ MIT License - see LICENSE file for details.
 
 ## Credits
 
-Created by [Your Name]
+Created by [Garrett Fincke](https://github.com/ggfincke)
 
 Special thanks to the VS Code extension development community.
 
 ---
 
-**Questions or issues?** Open an issue on [GitHub](https://github.com/yourusername/reactive-themes/issues)
+**Questions or issues?** Open an issue on [GitHub](https://github.com/ggfincke/reactive-themes/issues)
