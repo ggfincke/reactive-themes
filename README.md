@@ -115,6 +115,8 @@ Key commands available:
 | `Reactive Themes: Find and Remove Duplicate Rules` | Detect and clean up duplicates |
 | `Reactive Themes: Test Rule (Preview)` | Simulate rule matching against current/custom context |
 | `Reactive Themes: Lint Rules` | Run linter for duplicates, unreachable, invalid languages, and missing themes |
+| `Reactive Themes: Explain Current Theme` | Show why a theme is active (winning rule, context, shadowed/non-matching rules) |
+| `Reactive Themes: Copy Theme Explanation to Clipboard` | Copy the full theme explanation as markdown |
 
 ### Smart Behavior
 
