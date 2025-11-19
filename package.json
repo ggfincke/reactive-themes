@@ -61,6 +61,16 @@
         "command": "reactiveThemes.lintRules",
         "title": "Lint Rules",
         "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.explainCurrentTheme",
+        "title": "Explain Current Theme",
+        "category": "Reactive Themes"
+      },
+      {
+        "command": "reactiveThemes.copyThemeExplanation",
+        "title": "Copy Theme Explanation to Clipboard",
+        "category": "Reactive Themes"
       }
     ],
     "configuration": {
@@ -77,7 +87,11 @@
           "description": "Array of rules that define when to switch themes",
           "items": {
             "type": "object",
-            "required": ["name", "when", "theme"],
+            "required": [
+              "name",
+              "when",
+              "theme"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -101,7 +115,10 @@
                   },
                   "debugSession": {
                     "type": "string",
-                    "enum": ["active", "inactive"],
+                    "enum": [
+                      "active",
+                      "inactive"
+                    ],
                     "description": "Match when a debug session is active or inactive"
                   },
                   "debugType": {
@@ -110,7 +127,12 @@
                   },
                   "testState": {
                     "type": "string",
-                    "enum": ["running", "failed", "passed", "none"],
+                    "enum": [
+                      "running",
+                      "failed",
+                      "passed",
+                      "none"
+                    ],
                     "description": "Match based on test execution state"
                   },
                   "timerInterval": {
@@ -120,7 +142,11 @@
                   },
                   "viewMode": {
                     "type": "string",
-                    "enum": ["diff", "merge", "normal"],
+                    "enum": [
+                      "diff",
+                      "merge",
+                      "normal"
+                    ],
                     "description": "Match when viewing diffs, resolving merge conflicts, or in normal editing mode"
                   }
                 }
@@ -151,17 +177,20 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.106.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.46.3",
-    "eslint": "^9.39.1",
-    "typescript": "^5.9.3",
+    "@types/vscode": "^1.106.0",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.3"
   },
   "dependencies": {
     "minimatch": "^10.0.1"

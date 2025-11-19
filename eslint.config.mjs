@@ -19,6 +19,7 @@ export default [{
             format: ["camelCase", "PascalCase"],
         }],
 
+        "brace-style": ["warn", "1tbs", { allowSingleLine: false }],
         curly: "warn",
         eqeqeq: "warn",
         "no-throw-literal": "warn",
