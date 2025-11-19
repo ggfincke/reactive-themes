@@ -1,15 +1,16 @@
 // src/triggers/timerTrigger.ts
 // Register timer-based rules & emit ticks for matching
 
-import * as vscode from 'vscode';
-import { ContextManager } from '../contextManager';
-import { ThemeRule } from '../types';
+import * as vscode from "vscode";
+import { ContextManager } from "../contextManager";
+import { ThemeRule } from "../types";
 
 export class TimerTrigger implements vscode.Disposable {
     private timers: Map<string, NodeJS.Timeout> = new Map();
     private registeredRules: ThemeRule[] = [];
     private pendingTicks: Set<number> = new Set();
     private dispatchHandle: NodeJS.Timeout | undefined;
+    private lastFiredRules: number[] = [];
 
     constructor(
         private contextManager: ContextManager,
@@ -47,6 +48,7 @@ export class TimerTrigger implements vscode.Disposable {
             this.dispatchHandle = undefined;
             const firedRules = Array.from(this.pendingTicks.values());
             this.pendingTicks.clear();
+            this.lastFiredRules = firedRules;
 
             if (firedRules.length > 0) {
                 this.onTimerTick(firedRules, this.registeredRules);
@@ -54,10 +56,15 @@ export class TimerTrigger implements vscode.Disposable {
         }, 0);
     }
 
+    public getLastFiredRuleIndices(): number[] {
+        return this.lastFiredRules;
+    }
+
     private clearTimers(): void {
-        this.timers.forEach(timer => clearInterval(timer));
+        this.timers.forEach((timer) => clearInterval(timer));
         this.timers.clear();
         this.pendingTicks.clear();
+        this.lastFiredRules = [];
         if (this.dispatchHandle) {
             clearTimeout(this.dispatchHandle);
             this.dispatchHandle = undefined;

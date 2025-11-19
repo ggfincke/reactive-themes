@@ -1,23 +1,25 @@
 // src/contextManager.ts
 // Track VS Code context state for debug/test/view/timer triggers
 
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
+import { RuleCondition } from "./types";
+
+export type ContextFlags = Pick<
+    RuleCondition,
+    "debugSession" | "debugType" | "testState" | "viewMode"
+> & {
+    timerTick?: number; // Internal counter for timer-based rules
+};
 
 // current VS Code context snapshot
-export interface Context {
-    debugSession?: 'active' | 'inactive';
-    debugType?: string;
-    testState?: 'running' | 'failed' | 'passed' | 'none';
-    viewMode?: 'diff' | 'merge' | 'normal';
-    timerTick?: number; // Internal counter for timer-based rules
-}
+export interface Context extends ContextFlags {}
 
 export class ContextManager {
     private context: Context = {
-        debugSession: 'inactive',
-        testState: 'none',
-        viewMode: 'normal',
-        timerTick: 0
+        debugSession: "inactive",
+        testState: "none",
+        viewMode: "normal",
+        timerTick: 0,
     };
 
     private readonly onDidChangeContextEmitter = new vscode.EventEmitter<Context>();
@@ -27,7 +29,7 @@ export class ContextManager {
         return { ...this.context };
     }
 
-    public setDebugSession(state: 'active' | 'inactive', debugType?: string): void {
+    public setDebugSession(state: "active" | "inactive", debugType?: string): void {
         const changed = this.context.debugSession !== state || this.context.debugType !== debugType;
 
         this.context.debugSession = state;
@@ -38,14 +40,14 @@ export class ContextManager {
         }
     }
 
-    public setTestState(state: 'running' | 'failed' | 'passed' | 'none'): void {
+    public setTestState(state: "running" | "failed" | "passed" | "none"): void {
         if (this.context.testState !== state) {
             this.context.testState = state;
             this.onDidChangeContextEmitter.fire(this.getContext());
         }
     }
 
-    public setViewMode(mode: 'diff' | 'merge' | 'normal'): void {
+    public setViewMode(mode: "diff" | "merge" | "normal"): void {
         if (this.context.viewMode !== mode) {
             this.context.viewMode = mode;
             this.onDidChangeContextEmitter.fire(this.getContext());

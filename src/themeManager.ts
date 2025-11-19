@@ -1,8 +1,8 @@
 // src/themeManager.ts
 // Theme application manager w/ debouncing & state tracking
 
-import * as vscode from 'vscode';
-import { DEFAULT_DEBOUNCE_MS, getCurrentTheme, setCurrentTheme } from './config';
+import * as vscode from "vscode";
+import { DEFAULT_DEBOUNCE_MS, getCurrentTheme, setCurrentTheme } from "./config";
 
 // * manages theme application w/ debouncing & state tracking
 export class ThemeManager {
@@ -76,7 +76,7 @@ export class ThemeManager {
     // restore original theme from extension activation
     async restoreOriginalTheme(): Promise<void> {
         if (this.originalTheme && this.currentAppliedTheme !== this.originalTheme) {
-            await this.applyThemeImmediate(this.originalTheme, 'restoring original');
+            await this.applyThemeImmediate(this.originalTheme, "restoring original");
         }
     }
 
@@ -84,7 +84,7 @@ export class ThemeManager {
     applyFallback(fallbackTheme?: string): void {
         const themeToApply = fallbackTheme || this.originalTheme;
         if (themeToApply) {
-            this.applyTheme(themeToApply, 'fallback - no rules matched');
+            this.applyTheme(themeToApply, "fallback - no rules matched");
         }
     }
 

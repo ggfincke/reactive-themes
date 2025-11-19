@@ -1,26 +1,29 @@
 // src/triggers/viewTrigger.ts
 // Track diff/merge/normal view modes & update context
 
-import * as vscode from 'vscode';
-import { ContextManager } from '../contextManager';
+import * as vscode from "vscode";
+import { ContextManager } from "../contextManager";
 
 export class ViewTrigger implements vscode.Disposable {
     private disposables: vscode.Disposable[] = [];
 
-    constructor(private contextManager: ContextManager) {
+    constructor(
+        private contextManager: ContextManager,
+        private windowApi: typeof vscode.window = vscode.window
+    ) {
         this.initialize();
     }
 
     private initialize(): void {
         // Monitor visible editors to detect diff/merge views
         this.disposables.push(
-            vscode.window.onDidChangeVisibleTextEditors(() => {
+            this.windowApi.onDidChangeVisibleTextEditors(() => {
                 this.updateViewMode();
             })
         );
 
         this.disposables.push(
-            vscode.window.onDidChangeActiveTextEditor(() => {
+            this.windowApi.onDidChangeActiveTextEditor(() => {
                 this.updateViewMode();
             })
         );
@@ -30,23 +33,23 @@ export class ViewTrigger implements vscode.Disposable {
     }
 
     private updateViewMode(): void {
-        const activeEditor = vscode.window.activeTextEditor;
-        const visibleEditors = vscode.window.visibleTextEditors;
+        const activeEditor = this.windowApi.activeTextEditor;
+        const visibleEditors = this.windowApi.visibleTextEditors;
 
         // Check for merge conflict markers in active editor
         if (activeEditor && this.hasMergeConflicts(activeEditor.document)) {
-            this.contextManager.setViewMode('merge');
+            this.contextManager.setViewMode("merge");
             return;
         }
 
         // Check for diff view by analyzing URI schemes and editor layout
         if (this.isDiffView(activeEditor, visibleEditors)) {
-            this.contextManager.setViewMode('diff');
+            this.contextManager.setViewMode("diff");
             return;
         }
 
         // Default to normal view
-        this.contextManager.setViewMode('normal');
+        this.contextManager.setViewMode("normal");
     }
 
     private isDiffView(
@@ -58,7 +61,7 @@ export class ViewTrigger implements vscode.Disposable {
         }
 
         // Check for git diff schemes
-        const diffSchemes = ['git', 'vscode-scm', 'review'];
+        const diffSchemes = ["git", "vscode-scm", "review"];
         if (diffSchemes.includes(activeEditor.document.uri.scheme)) {
             return true;
         }
@@ -66,9 +69,7 @@ export class ViewTrigger implements vscode.Disposable {
         // Check if there are multiple editors in the same column (side-by-side comparison)
         const activeColumn = activeEditor.viewColumn;
         if (activeColumn !== undefined) {
-            const editorsInSameColumn = visibleEditors.filter(
-                e => e.viewColumn === activeColumn
-            );
+            const editorsInSameColumn = visibleEditors.filter((e) => e.viewColumn === activeColumn);
 
             // If multiple editors share the same column, it's likely a diff view
             if (editorsInSameColumn.length > 1) {
@@ -80,8 +81,7 @@ export class ViewTrigger implements vscode.Disposable {
         if (visibleEditors.length >= 2) {
             const baseName = this.getBaseName(activeEditor.document.uri.fsPath);
             const hasSimilarFile = visibleEditors.some(
-                e => e !== activeEditor &&
-                     this.getBaseName(e.document.uri.fsPath) === baseName
+                (e) => e !== activeEditor && this.getBaseName(e.document.uri.fsPath) === baseName
             );
             if (hasSimilarFile) {
                 return true;
@@ -96,21 +96,21 @@ export class ViewTrigger implements vscode.Disposable {
 
         // Look for standard git merge conflict markers
         const conflictMarkers = [
-            /^<<<<<<< /m,  // Conflict start
-            /^=======/m,  // Conflict separator
-            /^>>>>>>> /m   // Conflict end
+            /^<<<<<<< /m, // Conflict start
+            /^=======/m, // Conflict separator
+            /^>>>>>>> /m, // Conflict end
         ];
 
-        return conflictMarkers.every(marker => marker.test(text));
+        return conflictMarkers.every((marker) => marker.test(text));
     }
 
     private getBaseName(filePath: string): string {
         const parts = filePath.split(/[\\/]/);
         const fileName = parts[parts.length - 1];
-        return fileName.replace(/\.[^.]+$/, '');
+        return fileName.replace(/\.[^.]+$/, "");
     }
 
     public dispose(): void {
-        this.disposables.forEach(d => d.dispose());
+        this.disposables.forEach((d) => d.dispose());
     }
 }

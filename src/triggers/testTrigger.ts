@@ -1,96 +1,134 @@
 // src/triggers/testTrigger.ts
 // Track task execution to infer test running state
 
-import * as vscode from 'vscode';
-import { ContextManager } from '../contextManager';
+import * as vscode from "vscode";
+import { ContextManager } from "../contextManager";
 
 export class TestTrigger implements vscode.Disposable {
     private disposables: vscode.Disposable[] = [];
-    private testTimeout?: NodeJS.Timeout;
+    private resetTimeout?: NodeJS.Timeout;
+    private activeTaskRuns = 0;
+    private activeApiRuns = 0;
 
-    constructor(private contextManager: ContextManager) {
+    constructor(
+        private contextManager: ContextManager,
+        private tasksApi: typeof vscode.tasks = vscode.tasks,
+        private testsApi: {
+            onDidStartTestRun?: vscode.Event<vscode.TestRunRequest>;
+            onDidEndTestRun?: vscode.Event<vscode.TestRunRequest>;
+        } = vscode.tests as unknown as {
+            onDidStartTestRun?: vscode.Event<vscode.TestRunRequest>;
+            onDidEndTestRun?: vscode.Event<vscode.TestRunRequest>;
+        }
+    ) {
         this.initialize();
     }
 
     private initialize(): void {
         // Listen for task start events
         this.disposables.push(
-            vscode.tasks.onDidStartTask((e) => {
+            this.tasksApi.onDidStartTask((e) => {
                 if (this.isTestTask(e.execution.task)) {
-                    this.contextManager.setTestState('running');
-
-                    // Clear any existing timeout
-                    if (this.testTimeout) {
-                        clearTimeout(this.testTimeout);
-                    }
+                    this.activeTaskRuns += 1;
+                    this.setRunning();
                 }
             })
         );
 
         // Listen for task end events
         this.disposables.push(
-            vscode.tasks.onDidEndTask((e) => {
+            this.tasksApi.onDidEndTask((e) => {
                 if (this.isTestTask(e.execution.task)) {
-                    // Check exit code to determine pass/fail
-                    // Note: Unfortunately, TaskEndEvent doesn't provide exit code directly
-                    // We'll use a timeout to reset to 'none' state
-                    this.testTimeout = setTimeout(() => {
-                        this.contextManager.setTestState('none');
-                    }, 2000);
+                    this.activeTaskRuns = Math.max(0, this.activeTaskRuns - 1);
+                    this.handleRunCompletion();
                 }
             })
         );
 
         // Listen for task process end to get exit code
         this.disposables.push(
-            vscode.tasks.onDidEndTaskProcess((e) => {
+            this.tasksApi.onDidEndTaskProcess((e) => {
                 if (this.isTestTask(e.execution.task)) {
-                    if (this.testTimeout) {
-                        clearTimeout(this.testTimeout);
-                    }
-
-                    // Exit code 0 = success, non-zero = failure
-                    if (e.exitCode === 0) {
-                        this.contextManager.setTestState('passed');
-                    } else {
-                        this.contextManager.setTestState('failed');
-                    }
-
-                    // Reset to 'none' after a delay
-                    this.testTimeout = setTimeout(() => {
-                        this.contextManager.setTestState('none');
-                    }, 5000);
+                    this.activeTaskRuns = Math.max(0, this.activeTaskRuns - 1);
+                    const result = e.exitCode === 0 ? "passed" : "failed";
+                    this.handleRunCompletion(result);
                 }
             })
         );
+
+        if (this.testsApi?.onDidStartTestRun) {
+            this.disposables.push(
+                this.testsApi.onDidStartTestRun(() => {
+                    this.activeApiRuns += 1;
+                    this.setRunning();
+                })
+            );
+        }
+
+        if (this.testsApi?.onDidEndTestRun) {
+            this.disposables.push(
+                this.testsApi.onDidEndTestRun(() => {
+                    this.activeApiRuns = Math.max(0, this.activeApiRuns - 1);
+                    this.handleRunCompletion();
+                })
+            );
+        }
     }
 
     private isTestTask(task: vscode.Task): boolean {
         const taskName = task.name.toLowerCase();
-        const taskSource = task.source?.toLowerCase() || '';
+        const taskSource = task.source?.toLowerCase() || "";
 
         // Common test-related keywords
         const testKeywords = [
-            'test',
-            'jest',
-            'mocha',
-            'jasmine',
-            'karma',
-            'vitest',
-            'pytest',
-            'unittest',
-            'spec'
+            "test",
+            "jest",
+            "mocha",
+            "jasmine",
+            "karma",
+            "vitest",
+            "pytest",
+            "unittest",
+            "spec",
         ];
 
-        return testKeywords.some(keyword =>
-            taskName.includes(keyword) || taskSource.includes(keyword)
+        return testKeywords.some(
+            (keyword) => taskName.includes(keyword) || taskSource.includes(keyword)
         );
     }
 
-    public dispose(): void {
-        if (this.testTimeout) {
-            clearTimeout(this.testTimeout);
+    private setRunning(): void {
+        if (this.resetTimeout) {
+            clearTimeout(this.resetTimeout);
         }
-        this.disposables.forEach(d => d.dispose());
+        this.contextManager.setTestState("running");
+    }
+
+    private handleRunCompletion(result?: "passed" | "failed"): void {
+        if (this.activeTaskRuns > 0 || this.activeApiRuns > 0) {
+            return;
+        }
+
+        if (this.resetTimeout) {
+            clearTimeout(this.resetTimeout);
+        }
+
+        if (result) {
+            this.contextManager.setTestState(result);
+            this.resetTimeout = setTimeout(() => {
+                this.contextManager.setTestState("none");
+            }, 5000);
+        } else {
+            this.resetTimeout = setTimeout(() => {
+                this.contextManager.setTestState("none");
+            }, 2000);
+        }
+    }
+
+    public dispose(): void {
+        if (this.resetTimeout) {
+            clearTimeout(this.resetTimeout);
+        }
+        this.disposables.forEach((d) => d.dispose());
     }
 }
