@@ -1,11 +1,12 @@
 // src/ruleEngine.ts
 // Rule matching & evaluation engine for Reactive Themes
 
-import * as vscode from 'vscode';
-import { minimatch } from 'minimatch';
-import { ThemeRule, RuleMatchResult } from './types';
-import { Context } from './contextManager';
+import * as vscode from "vscode";
+import { minimatch } from "minimatch";
+import { ThemeRule, RuleMatchResult } from "./types";
+import { Context } from "./contextManager";
 
+// file context for rule evaluation
 export interface FileContext {
     languageId?: string;
     filePath?: string;
@@ -31,12 +32,7 @@ export function evaluateRules(
     context: Context,
     options: MatchOptions = {}
 ): RuleMatchResult {
-    const document = editor?.document;
-    const fileContext: FileContext = {
-        languageId: document?.languageId,
-        filePath: document?.uri.fsPath,
-        workspaceName: document ? vscode.workspace.getWorkspaceFolder(document.uri)?.name : undefined
-    };
+    const fileContext = extractFileContext(editor);
 
     // return first matching rule (first-match-wins strategy)
     for (let i = 0; i < rules.length; i++) {
@@ -46,7 +42,7 @@ export function evaluateRules(
             return {
                 matched: true,
                 rule: rule,
-                theme: rule.theme
+                theme: rule.theme,
             };
         }
     }
@@ -54,7 +50,7 @@ export function evaluateRules(
     return { matched: false };
 }
 
-// check if single rule matches current context and optionally collect reasons
+// * check if single rule matches current context & optionally collect reasons
 export function getRuleMatchDetails(
     rule: ThemeRule,
     fileContext: FileContext,
@@ -67,7 +63,7 @@ export function getRuleMatchDetails(
     let matched = true;
 
     if (options.timerOnly && when.timerInterval === undefined) {
-        return { matched: false, reasons: ['✗ Timer-only evaluation: rule has no timer interval'] };
+        return { matched: false, reasons: ["✗ Timer-only evaluation: rule has no timer interval"] };
     }
 
     if (when.language !== undefined) {
@@ -76,24 +72,38 @@ export function getRuleMatchDetails(
         reasons.push(
             languageMatches
                 ? `✓ Language matches: "${fileContext.languageId}" === "${when.language}"`
-                : `✗ Language mismatch: "${fileContext.languageId ?? '(none)'}" !== "${when.language}"`
+                : `✗ Language mismatch: "${fileContext.languageId ?? "(none)"}" !== "${when.language}"`
         );
     }
 
     if (when.pattern) {
-        const normalizedPath = fileContext.filePath?.replace(/\\/g, '/') ?? '(missing file path)';
-        const patternMatches = Boolean(fileContext.filePath && matchGlobPattern(fileContext.filePath, when.pattern));
-        matched = matched && patternMatches;
-        reasons.push(
-            patternMatches
-                ? `✓ Path matches pattern: "${normalizedPath}" matches "${when.pattern}"`
-                : `✗ Path doesn't match: "${normalizedPath}" doesn't match "${when.pattern}"`
-        );
+        const normalizedPath = fileContext.filePath?.replace(/\\/g, "/") ?? "(missing file path)";
+        let patternMatches = false;
+
+        try {
+            patternMatches = Boolean(
+                fileContext.filePath && matchGlobPattern(fileContext.filePath, when.pattern)
+            );
+        } catch (error) {
+            matched = false;
+            reasons.push(
+                `✗ Invalid pattern "${when.pattern}": ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+
+        if (!reasons[reasons.length - 1]?.startsWith("✗ Invalid pattern")) {
+            matched = matched && patternMatches;
+            reasons.push(
+                patternMatches
+                    ? `✓ Path matches pattern: "${normalizedPath}" matches "${when.pattern}"`
+                    : `✗ Path doesn't match: "${normalizedPath}" doesn't match "${when.pattern}"`
+            );
+        }
     }
 
     if (when.workspaceName) {
         const workspaceMatches = fileContext.workspaceName === when.workspaceName;
-        const contextWorkspace = fileContext.workspaceName || '(none)';
+        const contextWorkspace = fileContext.workspaceName || "(none)";
         matched = matched && workspaceMatches;
         reasons.push(
             workspaceMatches
@@ -104,7 +114,7 @@ export function getRuleMatchDetails(
 
     if (when.debugSession !== undefined) {
         const matches = context.debugSession === when.debugSession;
-        const contextDebug = context.debugSession || '(none)';
+        const contextDebug = context.debugSession || "(none)";
         matched = matched && matches;
         reasons.push(
             matches
@@ -115,7 +125,7 @@ export function getRuleMatchDetails(
 
     if (when.debugType !== undefined) {
         const matches = context.debugType === when.debugType;
-        const contextType = context.debugType || '(none)';
+        const contextType = context.debugType || "(none)";
         matched = matched && matches;
         reasons.push(
             matches
@@ -126,7 +136,7 @@ export function getRuleMatchDetails(
 
     if (when.testState !== undefined) {
         const matches = context.testState === when.testState;
-        const contextState = context.testState || '(none)';
+        const contextState = context.testState || "(none)";
         matched = matched && matches;
         reasons.push(
             matches
@@ -137,7 +147,7 @@ export function getRuleMatchDetails(
 
     if (when.viewMode !== undefined) {
         const matches = context.viewMode === when.viewMode;
-        const contextView = context.viewMode || '(none)';
+        const contextView = context.viewMode || "(none)";
         matched = matched && matches;
         reasons.push(
             matches
@@ -148,21 +158,23 @@ export function getRuleMatchDetails(
 
     if (when.timerInterval !== undefined) {
         const timerAllowed = options.allowTimerRules === true;
-        const timerActive = options.activeTimerRuleIndices ? options.activeTimerRuleIndices.has(ruleIndex) : undefined;
+        const timerActive = options.activeTimerRuleIndices
+            ? options.activeTimerRuleIndices.has(ruleIndex)
+            : undefined;
 
         if (!timerAllowed) {
             matched = false;
-            reasons.push('✗ Timer rule skipped: timer trigger not active');
+            reasons.push("✗ Timer rule skipped: timer trigger not active");
         } else if (timerActive === false) {
             matched = false;
-            reasons.push('✗ Timer rule skipped: timer event not fired for this rule');
+            reasons.push("✗ Timer rule skipped: timer event not fired for this rule");
         } else {
             reasons.push(`✓ Timer rule allowed (interval ${when.timerInterval}m)`);
         }
     }
 
     if (reasons.length === 0) {
-        reasons.push('⚠ Rule has no conditions');
+        reasons.push("⚠ Rule has no conditions");
         matched = false;
     }
 
@@ -171,52 +183,31 @@ export function getRuleMatchDetails(
 
 // glob pattern matcher for file paths using minimatch
 export function matchGlobPattern(filePath: string, pattern: string): boolean {
-    const normalizedPath = filePath.replace(/\\/g, '/');
-    const matchBase = !pattern.includes('/');
+    const normalizedPath = filePath.replace(/\\/g, "/");
+    const matchBase = !pattern.includes("/");
 
     return minimatch(normalizedPath, pattern, {
         dot: true,
-        matchBase
+        matchBase,
     });
 }
 
-// generate human-readable description of rule conditions
-export function getRuleDescription(rule: ThemeRule): string {
-    const parts: string[] = [];
+// * extract file context from editor or document
+export function extractFileContext(
+    editorOrDocument: vscode.TextEditor | vscode.TextDocument | undefined
+): FileContext {
+    const document =
+        editorOrDocument && "document" in editorOrDocument
+            ? editorOrDocument.document
+            : editorOrDocument;
 
-    // file-based conditions
-    if (rule.when.language) {
-        parts.push(`language: ${rule.when.language}`);
+    if (!document) {
+        return {};
     }
 
-    if (rule.when.pattern) {
-        parts.push(`pattern: ${rule.when.pattern}`);
-    }
-
-    if (rule.when.workspaceName) {
-        parts.push(`workspace: ${rule.when.workspaceName}`);
-    }
-
-    // context-based conditions
-    if (rule.when.debugSession) {
-        parts.push(`debug: ${rule.when.debugSession}`);
-    }
-
-    if (rule.when.debugType) {
-        parts.push(`debugType: ${rule.when.debugType}`);
-    }
-
-    if (rule.when.testState) {
-        parts.push(`test: ${rule.when.testState}`);
-    }
-
-    if (rule.when.timerInterval) {
-        parts.push(`timer: ${rule.when.timerInterval}m`);
-    }
-
-    if (rule.when.viewMode) {
-        parts.push(`view: ${rule.when.viewMode}`);
-    }
-
-    return parts.join(', ');
+    return {
+        languageId: document.languageId,
+        filePath: document.uri.fsPath,
+        workspaceName: vscode.workspace.getWorkspaceFolder(document.uri)?.name,
+    };
 }
