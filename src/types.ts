@@ -9,11 +9,11 @@ export interface RuleCondition {
     workspaceName?: string;
 
     // Context-based conditions
-    debugSession?: 'active' | 'inactive';
+    debugSession?: "active" | "inactive";
     debugType?: string;
-    testState?: 'running' | 'failed' | 'passed' | 'none';
+    testState?: "running" | "failed" | "passed" | "none";
     timerInterval?: number; // minutes
-    viewMode?: 'diff' | 'merge' | 'normal';
+    viewMode?: "diff" | "merge" | "normal";
 }
 
 // single theme rule mapping conditions to a theme
